@@ -1,10 +1,11 @@
 import { TMDBResponse, Movie, VideoResponse, Video, MovieDetails } from '../types';
 
 // ==========================================
-// 🔑 TU_API_KEY_AQUI
-// Por favor, reemplaza esta cadena con tu API Key v3 de TMDB
+// 🔑 TMDB API KEY
+// La API key se carga desde variables de entorno
+// Crea un archivo .env con VITE_TMDB_API_KEY=tu_api_key
 // ==========================================
-export const API_KEY: string = '43711959018d1023c3d8568219a6cab6'; 
+export const API_KEY: string = import.meta.env.VITE_TMDB_API_KEY || '';
 
 const BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
@@ -115,7 +116,7 @@ export const fetchPopularTV = async (page: number = 1): Promise<FetchResult> => 
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data = await response.json();
-    
+
     // Map TV specific fields to our generic Movie interface
     const results = data.results.map((tv: any) => ({
       id: tv.id,
@@ -146,7 +147,7 @@ export const searchMulti = async (query: string, page: number = 1): Promise<Fetc
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data = await response.json();
-    
+
     // Filter out 'person' results and map
     const results = data.results
       .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
@@ -181,10 +182,10 @@ export const fetchMovieVideos = async (id: number, type: 'movie' | 'tv' = 'movie
     if (!response.ok) throw new Error('Failed to fetch videos');
 
     const data: VideoResponse = await response.json();
-    
+
     // Fallback: If no results in Spanish, try English
     if (data.results.length === 0) {
-       const responseEn = await fetch(
+      const responseEn = await fetch(
         `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=en-US`
       );
       const dataEn: VideoResponse = await responseEn.json();
@@ -200,7 +201,7 @@ export const fetchMovieVideos = async (id: number, type: 'movie' | 'tv' = 'movie
 
 export const fetchMovieDetails = async (id: number, type: 'movie' | 'tv' = 'movie'): Promise<MovieDetails> => {
   const cacheKey = `${type}_details_${id}`;
-  
+
   const cachedData = getFromCache<MovieDetails>(cacheKey);
   if (cachedData) return cachedData;
 
@@ -210,17 +211,17 @@ export const fetchMovieDetails = async (id: number, type: 'movie' | 'tv' = 'movi
     );
     if (!response.ok) throw new Error('Failed to fetch details');
     const data = await response.json();
-    
+
     // Standardize title for TV
     if (type === 'tv') {
-        data.title = data.name;
-        data.release_date = data.first_air_date;
-        // TV specific runtime
-        if (data.episode_run_time && data.episode_run_time.length > 0) {
-            data.runtime = data.episode_run_time[0];
-        }
+      data.title = data.name;
+      data.release_date = data.first_air_date;
+      // TV specific runtime
+      if (data.episode_run_time && data.episode_run_time.length > 0) {
+        data.runtime = data.episode_run_time[0];
+      }
     }
-    
+
     saveToCache(cacheKey, data);
     return data;
   } catch (error) {
@@ -241,14 +242,14 @@ export const fetchRecommendations = async (id: number, type: 'movie' | 'tv' = 'm
     );
     if (!response.ok) throw new Error('Failed to fetch recommendations');
     const data: TMDBResponse = await response.json();
-    
+
     const results = data.results.map((item: any) => ({
       ...item,
       title: item.title || item.name,
       release_date: item.release_date || item.first_air_date,
       media_type: type
     }));
-    
+
     saveToCache(cacheKey, results);
     return results;
   } catch (error) {
