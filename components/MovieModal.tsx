@@ -55,7 +55,8 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
     try {
       const videos = await fetchMovieVideos(movieId);
       // Priority: Official Trailer -> Trailer -> Teaser, strictly YouTube
-      const trailer = videos.find(v => v.site === 'YouTube' && v.type === 'Trailer') 
+      const trailer = videos.find(v => v.site === 'YouTube' && v.type === 'Trailer' && v.official)
+                   || videos.find(v => v.site === 'YouTube' && v.type === 'Trailer') 
                    || videos.find(v => v.site === 'YouTube' && v.type === 'Teaser');
       
       if (trailer) {
@@ -135,10 +136,9 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                 {isPlaying && trailerKey ? (
                 <iframe
                     className="w-full h-full"
-                    src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&rel=0`}
+                    src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=1&rel=0&modestbranding=1&fs=1`}
                     title="YouTube video player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                 ></iframe>
                 ) : (

@@ -8,10 +8,46 @@ export const API_KEY: string = '43711959018d1023c3d8568219a6cab6';
 
 const BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
 export const getImageUrl = (path: string | null, size: 'original' | 'w500' = 'w500') => {
   if (!path) return 'https://via.placeholder.com/500x750?text=No+Image';
   return `${IMAGE_BASE_URL}/${size}${path}`;
+};
+
+// Helper function to get data from localStorage with expiry check
+const getFromCache = <T>(key: string): T | null => {
+  try {
+    const cachedItem = localStorage.getItem(key);
+    if (!cachedItem) return null;
+
+    const { data, timestamp } = JSON.parse(cachedItem);
+    const now = Date.now();
+
+    if (now - timestamp < CACHE_DURATION) {
+      return data as T;
+    } else {
+      // Expired
+      localStorage.removeItem(key);
+      return null;
+    }
+  } catch (error) {
+    console.error('Error reading from cache:', error);
+    return null;
+  }
+};
+
+// Helper function to save data to localStorage
+const saveToCache = (key: string, data: any) => {
+  try {
+    const item = {
+      data,
+      timestamp: Date.now(),
+    };
+    localStorage.setItem(key, JSON.stringify(item));
+  } catch (error) {
+    console.warn('Error saving to cache (Storage likely full):', error);
+  }
 };
 
 export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => {
@@ -63,12 +99,25 @@ export const fetchMovieVideos = async (movieId: number): Promise<Video[]> => {
 };
 
 export const fetchMovieDetails = async (movieId: number): Promise<MovieDetails> => {
+  const cacheKey = `movie_details_${movieId}`;
+  
+  // Try cache first
+  const cachedData = getFromCache<MovieDetails>(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+
   try {
     const response = await fetch(
       `${BASE_URL}/movie/${movieId}?api_key=${API_KEY}&language=es-ES`
     );
     if (!response.ok) throw new Error('Failed to fetch details');
-    return await response.json();
+    const data = await response.json();
+    
+    // Save to cache
+    saveToCache(cacheKey, data);
+    
+    return data;
   } catch (error) {
     console.error('Error fetching movie details:', error);
     throw error;
@@ -76,12 +125,24 @@ export const fetchMovieDetails = async (movieId: number): Promise<MovieDetails> 
 };
 
 export const fetchRecommendations = async (movieId: number): Promise<Movie[]> => {
+  const cacheKey = `movie_recs_${movieId}`;
+
+  // Try cache first
+  const cachedData = getFromCache<Movie[]>(cacheKey);
+  if (cachedData) {
+    return cachedData;
+  }
+
   try {
     const response = await fetch(
       `${BASE_URL}/movie/${movieId}/recommendations?api_key=${API_KEY}&language=es-ES&page=1`
     );
     if (!response.ok) throw new Error('Failed to fetch recommendations');
     const data: TMDBResponse = await response.json();
+    
+    // Save to cache
+    saveToCache(cacheKey, data.results);
+    
     return data.results;
   } catch (error) {
     console.error('Error fetching recommendations:', error);
