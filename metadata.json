@@ -1,0 +1,5 @@
+{
+  "name": "CineStream Discovery",
+  "description": "A modern, dark-themed movie discovery app using The Movie Database (TMDB) API with a responsive design and immersive UX.",
+  "requestFramePermissions": []
+}
