@@ -50,51 +50,65 @@ const saveToCache = (key: string, data: any) => {
   }
 };
 
+export interface FetchResult {
+  results: Movie[];
+  total_pages: number;
+}
+
 // --- API CALLS ---
 
-export const fetchPopularMovies = async (page: number = 1): Promise<Movie[]> => {
+export const fetchPopularMovies = async (page: number = 1): Promise<FetchResult> => {
   try {
     const response = await fetch(
       `${BASE_URL}/movie/popular?api_key=${API_KEY}&language=es-ES&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
-    return data.results.map(m => ({ ...m, media_type: 'movie' }));
+    return {
+      results: data.results.map(m => ({ ...m, media_type: 'movie' })),
+      total_pages: data.total_pages
+    };
   } catch (error) {
     console.error('Error fetching popular movies:', error);
     throw error;
   }
 };
 
-export const fetchTopRatedMovies = async (page: number = 1): Promise<Movie[]> => {
+export const fetchTopRatedMovies = async (page: number = 1): Promise<FetchResult> => {
   try {
     const response = await fetch(
       `${BASE_URL}/movie/top_rated?api_key=${API_KEY}&language=es-ES&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
-    return data.results.map(m => ({ ...m, media_type: 'movie' }));
+    return {
+      results: data.results.map(m => ({ ...m, media_type: 'movie' })),
+      total_pages: data.total_pages
+    };
   } catch (error) {
     console.error('Error fetching top rated movies:', error);
     throw error;
   }
 };
 
-export const fetchUpcomingMovies = async (page: number = 1): Promise<Movie[]> => {
+export const fetchUpcomingMovies = async (page: number = 1): Promise<FetchResult> => {
   try {
     const response = await fetch(
       `${BASE_URL}/movie/upcoming?api_key=${API_KEY}&language=es-ES&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
-    return data.results.map(m => ({ ...m, media_type: 'movie' }));
+    return {
+      results: data.results.map(m => ({ ...m, media_type: 'movie' })),
+      total_pages: data.total_pages
+    };
   } catch (error) {
     console.error('Error fetching upcoming movies:', error);
     throw error;
   }
 };
 
-export const fetchPopularTV = async (page: number = 1): Promise<Movie[]> => {
+export const fetchPopularTV = async (page: number = 1): Promise<FetchResult> => {
   try {
     const response = await fetch(
       `${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES&page=${page}`
@@ -103,7 +117,7 @@ export const fetchPopularTV = async (page: number = 1): Promise<Movie[]> => {
     const data = await response.json();
     
     // Map TV specific fields to our generic Movie interface
-    return data.results.map((tv: any) => ({
+    const results = data.results.map((tv: any) => ({
       id: tv.id,
       title: tv.name, // Map 'name' to 'title'
       overview: tv.overview,
@@ -114,22 +128,27 @@ export const fetchPopularTV = async (page: number = 1): Promise<Movie[]> => {
       genre_ids: tv.genre_ids,
       media_type: 'tv'
     }));
+
+    return {
+      results,
+      total_pages: data.total_pages
+    };
   } catch (error) {
     console.error('Error fetching popular TV:', error);
     throw error;
   }
 };
 
-export const searchMulti = async (query: string): Promise<Movie[]> => {
+export const searchMulti = async (query: string, page: number = 1): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/search/multi?api_key=${API_KEY}&language=es-ES&query=${encodeURIComponent(query)}&include_adult=false`
+      `${BASE_URL}/search/multi?api_key=${API_KEY}&language=es-ES&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data = await response.json();
     
     // Filter out 'person' results and map
-    return data.results
+    const results = data.results
       .filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv')
       .map((item: any) => ({
         id: item.id,
@@ -142,6 +161,11 @@ export const searchMulti = async (query: string): Promise<Movie[]> => {
         genre_ids: item.genre_ids,
         media_type: item.media_type
       }));
+
+    return {
+      results,
+      total_pages: data.total_pages
+    };
   } catch (error) {
     console.error('Error searching:', error);
     throw error;

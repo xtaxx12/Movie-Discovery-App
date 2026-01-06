@@ -9,7 +9,8 @@ import {
   fetchTopRatedMovies, 
   fetchPopularTV, 
   fetchUpcomingMovies, 
-  searchMulti 
+  searchMulti,
+  FetchResult
 } from './services/tmdbService';
 import { Movie } from './types';
 
@@ -20,34 +21,40 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>('home');
   const [currentQuery, setCurrentQuery] = useState<string>('');
+  const [page, setPage] = useState<number>(1);
+  const [totalPages, setTotalPages] = useState<number>(0);
 
-  const loadContent = async (category: string, query?: string) => {
+  const loadContent = async (category: string, query?: string, pageNum: number = 1) => {
     setLoading(true);
     setError(null);
     try {
-      let results: Movie[] = [];
+      let data: FetchResult = { results: [], total_pages: 0 };
       
       if (query) {
-         results = await searchMulti(query);
+         data = await searchMulti(query, pageNum);
       } else {
         switch (category) {
           case 'home':
-            results = await fetchPopularMovies();
+            data = await fetchPopularMovies(pageNum);
             break;
           case 'movies':
-            results = await fetchTopRatedMovies();
+            data = await fetchTopRatedMovies(pageNum);
             break;
           case 'series':
-            results = await fetchPopularTV();
+            data = await fetchPopularTV(pageNum);
             break;
           case 'upcoming':
-            results = await fetchUpcomingMovies();
+            data = await fetchUpcomingMovies(pageNum);
             break;
           default:
-            results = await fetchPopularMovies();
+            data = await fetchPopularMovies(pageNum);
         }
       }
-      setMovies(results);
+
+      setMovies(data.results);
+      setTotalPages(data.total_pages);
+      setPage(pageNum);
+
     } catch (err) {
       setError('No se pudieron cargar los datos. Verifica tu conexión o tu API Key.');
     } finally {
@@ -56,21 +63,40 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    loadContent(activeCategory);
+    loadContent(activeCategory, '', 1);
   }, []); // Initial load
 
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);
-    setCurrentQuery(''); // Clear search when changing category
-    loadContent(category);
+    setCurrentQuery(''); 
+    setPage(1);
+    loadContent(category, '', 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSearch = (query: string) => {
     setActiveCategory('search');
     setCurrentQuery(query);
-    loadContent('search', query);
+    setPage(1);
+    loadContent('search', query, 1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      if (activeCategory === 'search') {
+        loadContent('search', currentQuery, newPage);
+      } else {
+        loadContent(activeCategory, '', newPage);
+      }
+      // Scroll to top of grid
+      const grid = document.getElementById('movies');
+      if (grid) {
+        grid.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
   };
 
   const handleRetry = () => {
@@ -93,7 +119,7 @@ const App: React.FC = () => {
     return 'Populares en CineStream';
   };
 
-  // Loading State
+  // Loading State (Initial only if not handled by overlay)
   if (loading && movies.length === 0) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
@@ -104,7 +130,7 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-red-600 selection:text-white pb-10">
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-red-600 selection:text-white pb-10 flex flex-col">
       <Navbar 
         onCategoryChange={handleCategoryChange} 
         onSearch={handleSearch}
@@ -119,11 +145,11 @@ const App: React.FC = () => {
       />
 
       {error ? (
-        <div className="h-screen flex flex-col items-center justify-center text-center px-4">
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
            <i className="fas fa-video-slash text-6xl text-gray-600 mb-4"></i>
            <h2 className="text-2xl font-bold mb-2">Ups, algo salió mal</h2>
            <p className="text-gray-400 mb-6">{error}</p>
-           <button onClick={() => loadContent(activeCategory)} className="bg-red-600 px-6 py-2 rounded font-bold hover:bg-red-700">
+           <button onClick={() => loadContent(activeCategory, currentQuery, 1)} className="bg-red-600 px-6 py-2 rounded font-bold hover:bg-red-700">
              Reintentar
            </button>
         </div>
@@ -138,7 +164,7 @@ const App: React.FC = () => {
           )}
 
           {/* Main Content Grid */}
-          <main id="movies" className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${activeCategory === 'search' ? 'pt-24' : '-mt-20 py-16'}`}>
+          <main id="movies" className={`flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${activeCategory === 'search' ? 'pt-24' : '-mt-20 py-16'}`}>
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl md:text-3xl font-bold">{getPageTitle()}</h2>
               {activeCategory !== 'search' && (
@@ -148,23 +174,61 @@ const App: React.FC = () => {
                 </div>
               )}
             </div>
-
-            {movies.length === 0 ? (
+            
+            {loading ? (
+                <div className="h-64 flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-b-4 border-red-600"></div>
+                </div>
+            ) : movies.length === 0 ? (
                 <div className="text-center py-20 text-gray-500">
                     <i className="far fa-folder-open text-5xl mb-4"></i>
                     <p>No se encontraron resultados.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 gap-y-10">
-                {/* If it's home/category, skip the first one because it is in Hero. If search, show all. */}
-                {(activeCategory === 'search' ? movies : movies.slice(1)).map((movie) => (
-                    <MovieCard 
-                    key={`${movie.id}-${movie.media_type}`} // unique key for mixed lists
-                    movie={movie} 
-                    onClick={() => openModal(movie)}
-                    />
-                ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 gap-y-10">
+                    {/* If it's home/category, skip the first one because it is in Hero. If search, show all. */}
+                    {/* Note: Pagination replaces items, so we show all items returned for that page. 
+                        However, if on page 1 of 'home', the Hero takes the first one. 
+                        We should probably duplicate the first one or just accept it's in the grid too? 
+                        Usually apps remove it from grid if in Hero. */}
+                    {(activeCategory === 'search' || page > 1 
+                        ? movies 
+                        : movies.slice(1) // On page 1 home/category, remove hero item from grid
+                     ).map((movie) => (
+                        <MovieCard 
+                        key={`${movie.id}-${movie.media_type}`} // unique key for mixed lists
+                        movie={movie} 
+                        onClick={() => openModal(movie)}
+                        />
+                    ))}
+                  </div>
+
+                  {/* Standard Pagination */}
+                  <div className="mt-16 flex justify-center items-center gap-4">
+                    <button 
+                      onClick={() => handlePageChange(page - 1)}
+                      disabled={page === 1}
+                      className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
+                      title="Página Anterior"
+                    >
+                      <i className="fas fa-chevron-left"></i>
+                    </button>
+                    
+                    <span className="text-gray-400 font-medium">
+                        Página <span className="text-white font-bold">{page}</span> de <span className="text-white">{totalPages > 500 ? 500 : totalPages}</span>
+                    </span>
+
+                    <button 
+                      onClick={() => handlePageChange(page + 1)}
+                      disabled={page >= totalPages}
+                      className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
+                       title="Siguiente Página"
+                    >
+                      <i className="fas fa-chevron-right"></i>
+                    </button>
+                  </div>
+                </>
             )}
           </main>
 
