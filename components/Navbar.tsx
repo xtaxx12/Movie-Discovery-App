@@ -76,6 +76,7 @@ const Navbar: React.FC<NavbarProps> = ({ onCategoryChange, onSearch, activeCateg
               <a onClick={() => onCategoryChange('movies')} className={getLinkClass('movies')}>Películas</a>
               <a onClick={() => onCategoryChange('series')} className={getLinkClass('series')}>Series</a>
               <a onClick={() => onCategoryChange('upcoming')} className={getLinkClass('upcoming')}>Novedades</a>
+              <a onClick={() => onCategoryChange('favorites')} className={getLinkClass('favorites')}>Favoritos</a>
             </div>
           </div>
 
@@ -113,12 +114,13 @@ const Navbar: React.FC<NavbarProps> = ({ onCategoryChange, onSearch, activeCateg
         </div>
       </div>
       
-      {/* Mobile Menu (Optional simple implementation for context) */}
-      <div className="md:hidden flex justify-around py-2 bg-black/90 text-xs text-gray-400 border-t border-gray-800">
-          <button onClick={() => onCategoryChange('home')} className={activeCategory === 'home' ? 'text-white' : ''}>Inicio</button>
-          <button onClick={() => onCategoryChange('movies')} className={activeCategory === 'movies' ? 'text-white' : ''}>Pelis</button>
-          <button onClick={() => onCategoryChange('series')} className={activeCategory === 'series' ? 'text-white' : ''}>Series</button>
-          <button onClick={() => onCategoryChange('upcoming')} className={activeCategory === 'upcoming' ? 'text-white' : ''}>Nuevos</button>
+      {/* Mobile Menu */}
+      <div className="md:hidden flex justify-around py-2 bg-black/90 text-xs text-gray-400 border-t border-gray-800 overflow-x-auto">
+          <button onClick={() => onCategoryChange('home')} className={`whitespace-nowrap px-3 ${activeCategory === 'home' ? 'text-white' : ''}`}>Inicio</button>
+          <button onClick={() => onCategoryChange('movies')} className={`whitespace-nowrap px-3 ${activeCategory === 'movies' ? 'text-white' : ''}`}>Pelis</button>
+          <button onClick={() => onCategoryChange('series')} className={`whitespace-nowrap px-3 ${activeCategory === 'series' ? 'text-white' : ''}`}>Series</button>
+          <button onClick={() => onCategoryChange('upcoming')} className={`whitespace-nowrap px-3 ${activeCategory === 'upcoming' ? 'text-white' : ''}`}>Nuevos</button>
+          <button onClick={() => onCategoryChange('favorites')} className={`whitespace-nowrap px-3 ${activeCategory === 'favorites' ? 'text-white' : ''}`}>Favs</button>
       </div>
     </nav>
   );

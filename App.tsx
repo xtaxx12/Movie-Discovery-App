@@ -16,6 +16,17 @@ import { Movie } from './types';
 
 const App: React.FC = () => {
   const [movies, setMovies] = useState<Movie[]>([]);
+  const [favorites, setFavorites] = useState<Movie[]>(() => {
+    // Initialize favorites from localStorage
+    try {
+        const saved = localStorage.getItem('favorites');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        console.error("Error loading favorites", e);
+        return [];
+    }
+  });
+
   const [selectedMovie, setSelectedMovie] = useState<Movie | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -24,9 +35,41 @@ const App: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(0);
 
+  // Function to toggle favorites
+  const handleToggleFavorite = (movie: Movie) => {
+    setFavorites(prevFavs => {
+      const exists = prevFavs.some(f => f.id === movie.id);
+      let newFavs;
+      if (exists) {
+        newFavs = prevFavs.filter(f => f.id !== movie.id);
+      } else {
+        newFavs = [...prevFavs, movie];
+      }
+      localStorage.setItem('favorites', JSON.stringify(newFavs));
+      
+      // If currently viewing favorites, update the list immediately
+      if (activeCategory === 'favorites') {
+        setMovies(newFavs);
+      }
+      
+      return newFavs;
+    });
+  };
+
   const loadContent = async (category: string, query?: string, pageNum: number = 1) => {
     setLoading(true);
     setError(null);
+
+    // Special handling for Favorites category (Local Data)
+    if (category === 'favorites') {
+        // Simple client-side "pagination" or just show all. Showing all for simplicity.
+        setMovies(favorites);
+        setTotalPages(1);
+        setPage(1);
+        setLoading(false);
+        return;
+    }
+
     try {
       let data: FetchResult = { results: [], total_pages: 0 };
       
@@ -83,6 +126,9 @@ const App: React.FC = () => {
   };
 
   const handlePageChange = (newPage: number) => {
+    // Pagination only for API categories
+    if (activeCategory === 'favorites') return;
+
     if (newPage >= 1 && newPage <= totalPages) {
       if (activeCategory === 'search') {
         loadContent('search', currentQuery, newPage);
@@ -116,11 +162,17 @@ const App: React.FC = () => {
     if (activeCategory === 'movies') return 'Películas Mejor Valoradas';
     if (activeCategory === 'series') return 'Series Populares';
     if (activeCategory === 'upcoming') return 'Novedades y Estrenos';
+    if (activeCategory === 'favorites') return 'Mi Lista de Favoritos';
     return 'Populares en CineStream';
   };
 
+  // Determine if selected movie is a favorite
+  const isSelectedMovieFavorite = selectedMovie 
+    ? favorites.some(f => f.id === selectedMovie.id) 
+    : false;
+
   // Loading State (Initial only if not handled by overlay)
-  if (loading && movies.length === 0) {
+  if (loading && movies.length === 0 && activeCategory !== 'favorites') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-600"></div>
@@ -142,6 +194,8 @@ const App: React.FC = () => {
         movie={selectedMovie} 
         onClose={closeModal} 
         onMovieSelect={openModal}
+        isFavorite={isSelectedMovieFavorite}
+        onToggleFavorite={() => selectedMovie && handleToggleFavorite(selectedMovie)}
       />
 
       {error ? (
@@ -155,8 +209,8 @@ const App: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Hero Section (Only show on Home or when we have valid data and not searching) */}
-          {movies.length > 0 && activeCategory !== 'search' && (
+          {/* Hero Section (Show on Home, or if we are not searching and not in favorites - or allow hero in favs if list > 0) */}
+          {activeCategory === 'home' && movies.length > 0 && (
             <Hero 
               movie={movies[0]} 
               onMoreInfoClick={() => openModal(movies[0])}
@@ -164,10 +218,10 @@ const App: React.FC = () => {
           )}
 
           {/* Main Content Grid */}
-          <main id="movies" className={`flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${activeCategory === 'search' ? 'pt-24' : '-mt-20 py-16'}`}>
+          <main id="movies" className={`flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${activeCategory === 'home' ? '-mt-20 py-16' : 'pt-24 py-16'}`}>
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl md:text-3xl font-bold">{getPageTitle()}</h2>
-              {activeCategory !== 'search' && (
+              {activeCategory !== 'search' && activeCategory !== 'favorites' && (
                 <div className="flex gap-2">
                    <button onClick={() => handleCategoryChange('movies')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">Películas</button>
                    <button onClick={() => handleCategoryChange('series')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">Series</button>
@@ -181,53 +235,64 @@ const App: React.FC = () => {
                 </div>
             ) : movies.length === 0 ? (
                 <div className="text-center py-20 text-gray-500">
-                    <i className="far fa-folder-open text-5xl mb-4"></i>
-                    <p>No se encontraron resultados.</p>
+                    {activeCategory === 'favorites' ? (
+                        <>
+                             <i className="far fa-heart text-5xl mb-4 text-gray-700"></i>
+                             <p className="text-lg">Aún no tienes favoritos.</p>
+                             <p className="text-sm mt-2">Agrega películas o series para verlas aquí.</p>
+                             <button onClick={() => handleCategoryChange('home')} className="mt-6 text-red-500 hover:text-red-400 underline">
+                                Explorar contenido
+                             </button>
+                        </>
+                    ) : (
+                        <>
+                            <i className="far fa-folder-open text-5xl mb-4"></i>
+                            <p>No se encontraron resultados.</p>
+                        </>
+                    )}
                 </div>
             ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 gap-y-10">
-                    {/* If it's home/category, skip the first one because it is in Hero. If search, show all. */}
-                    {/* Note: Pagination replaces items, so we show all items returned for that page. 
-                        However, if on page 1 of 'home', the Hero takes the first one. 
-                        We should probably duplicate the first one or just accept it's in the grid too? 
-                        Usually apps remove it from grid if in Hero. */}
-                    {(activeCategory === 'search' || page > 1 
-                        ? movies 
-                        : movies.slice(1) // On page 1 home/category, remove hero item from grid
+                    {/* Logic: If Home page 1, skip first (it's Hero). Else show all. */}
+                    {(activeCategory === 'home' && page === 1
+                        ? movies.slice(1) 
+                        : movies
                      ).map((movie) => (
                         <MovieCard 
-                        key={`${movie.id}-${movie.media_type}`} // unique key for mixed lists
+                        key={`${movie.id}-${movie.media_type}`} 
                         movie={movie} 
                         onClick={() => openModal(movie)}
                         />
                     ))}
                   </div>
 
-                  {/* Standard Pagination */}
-                  <div className="mt-16 flex justify-center items-center gap-4">
-                    <button 
-                      onClick={() => handlePageChange(page - 1)}
-                      disabled={page === 1}
-                      className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
-                      title="Página Anterior"
-                    >
-                      <i className="fas fa-chevron-left"></i>
-                    </button>
-                    
-                    <span className="text-gray-400 font-medium">
-                        Página <span className="text-white font-bold">{page}</span> de <span className="text-white">{totalPages > 500 ? 500 : totalPages}</span>
-                    </span>
+                  {/* Standard Pagination (Hide for Favorites) */}
+                  {activeCategory !== 'favorites' && totalPages > 1 && (
+                    <div className="mt-16 flex justify-center items-center gap-4">
+                        <button 
+                        onClick={() => handlePageChange(page - 1)}
+                        disabled={page === 1}
+                        className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
+                        title="Página Anterior"
+                        >
+                        <i className="fas fa-chevron-left"></i>
+                        </button>
+                        
+                        <span className="text-gray-400 font-medium">
+                            Página <span className="text-white font-bold">{page}</span> de <span className="text-white">{totalPages > 500 ? 500 : totalPages}</span>
+                        </span>
 
-                    <button 
-                      onClick={() => handlePageChange(page + 1)}
-                      disabled={page >= totalPages}
-                      className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
-                       title="Siguiente Página"
-                    >
-                      <i className="fas fa-chevron-right"></i>
-                    </button>
-                  </div>
+                        <button 
+                        onClick={() => handlePageChange(page + 1)}
+                        disabled={page >= totalPages}
+                        className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
+                        title="Siguiente Página"
+                        >
+                        <i className="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                  )}
                 </>
             )}
           </main>

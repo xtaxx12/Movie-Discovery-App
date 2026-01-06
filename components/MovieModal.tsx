@@ -7,20 +7,23 @@ interface MovieModalProps {
   movie: Movie | null;
   onClose: () => void;
   onMovieSelect?: (movie: Movie) => void;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }
 
-const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }) => {
+const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect, isFavorite, onToggleFavorite }) => {
+  const [renderMovie, setRenderMovie] = useState<Movie | null>(null);
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [details, setDetails] = useState<MovieDetails | null>(null);
-  const [isFavorite, setIsFavorite] = useState(false);
   const [recommendations, setRecommendations] = useState<Movie[]>([]);
   const [isVisible, setIsVisible] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (movie) {
+      setRenderMovie(movie); // Update content immediately for open animation
       document.body.style.overflow = 'hidden';
       // Reset scroll position when movie changes
       if (scrollContainerRef.current) {
@@ -32,21 +35,23 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
       loadTrailer(movie.id, type);
       fetchMovieDetails(movie.id, type).then(setDetails).catch(err => console.error(err));
       fetchRecommendations(movie.id, type).then(setRecommendations).catch(err => console.error(err));
-      setIsFavorite(false);
+      
       // Trigger fade-in animation
-      setIsVisible(true);
+      // Small timeout ensures the render happened before opacity change
+      requestAnimationFrame(() => setIsVisible(true));
     } else {
-      document.body.style.overflow = 'auto';
-      setTrailerKey(null);
-      setIsPlaying(false);
-      setDetails(null);
-      setIsFavorite(false);
-      setRecommendations([]);
       setIsVisible(false);
+      // Wait for animation to finish before removing content/scroll lock
+      const timer = setTimeout(() => {
+        setRenderMovie(null);
+        document.body.style.overflow = 'auto';
+        setTrailerKey(null);
+        setIsPlaying(false);
+        setDetails(null);
+        setRecommendations([]);
+      }, 300); // Matches duration-300
+      return () => clearTimeout(timer);
     }
-    return () => {
-      document.body.style.overflow = 'auto';
-    };
   }, [movie]);
 
   const loadTrailer = async (movieId: number, type: 'movie' | 'tv') => {
@@ -77,15 +82,14 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
     }
   };
 
-  const toggleFavorite = () => {
-    setIsFavorite(!isFavorite);
-  };
-
   const handleClose = () => {
-    setIsVisible(false);
-    setTimeout(() => {
-      onClose();
-    }, 300); // Match CSS duration
+    setIsVisible(false); // Trigger close animation
+    // The parent controls 'movie' prop. We call onClose immediately, 
+    // parent sets movie to null, which triggers the useEffect 'else' block for cleanup.
+    // However, to make it smooth, we can just call onClose. 
+    // But if parent sets null immediately, the effect runs. 
+    // We rely on the effect's delay to keep content visible during fade out.
+    onClose(); 
   };
 
   const renderStars = (voteAverage: number) => {
@@ -103,7 +107,12 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
     return stars;
   };
 
-  if (!movie) return null;
+  // Only return null if we have absolutely nothing to render (initial state)
+  if (!renderMovie && !movie) return null;
+
+  // Use renderMovie to keep content valid during fade-out
+  const activeMovie = movie || renderMovie;
+  if (!activeMovie) return null;
 
   return (
     <div 
@@ -117,7 +126,7 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
 
       {/* Modal Container */}
       <div 
-        className={`relative bg-[#181818] w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out transform ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
+        className={`relative bg-[#181818] w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out transform ${isVisible ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4'}`}
       >
         {/* Close Button */}
         <button 
@@ -147,16 +156,16 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                 ) : (
                 <>
                     <img 
-                        src={getImageUrl(movie.backdrop_path, 'original')} 
-                        alt={movie.title}
+                        src={getImageUrl(activeMovie.backdrop_path, 'original')} 
+                        alt={activeMovie.title}
                         className="w-full h-full object-cover"
                     />
                     {/* Gradient Overlay */}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#181818] via-[#181818]/20 to-transparent"></div>
                     
-                    <div className="absolute bottom-0 left-0 p-4 sm:p-8 w-full z-10">
+                    <div className="absolute bottom-0 left-0 p-4 sm:p-8 w-full z-10 transition-transform duration-500 delay-100 translate-y-0 opacity-100">
                         <h2 className="text-2xl sm:text-4xl md:text-5xl font-bold text-white mb-3 sm:mb-4 drop-shadow-lg leading-tight">
-                            {movie.title}
+                            {activeMovie.title}
                         </h2>
                         <div className="flex flex-wrap gap-3">
                             <button 
@@ -179,7 +188,7 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                             </button>
                             
                             <button 
-                                onClick={toggleFavorite}
+                                onClick={onToggleFavorite}
                                 className={`
                                     px-4 sm:px-8 py-2 rounded font-bold flex items-center gap-2 transition-colors border text-sm sm:text-base
                                     ${isFavorite 
@@ -197,17 +206,17 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
             </div>
 
             {/* Details Content */}
-            <div className="p-4 sm:p-8">
+            <div className="p-4 sm:p-8 transition-opacity duration-500 delay-200">
               <div className="grid md:grid-cols-[2fr_1fr] gap-6 md:gap-8 mb-8">
                   <div className="space-y-4">
                       <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm font-semibold text-gray-300 flex-wrap">
-                          <span className="text-green-400 font-bold">{(movie.vote_average * 10).toFixed(0)}% Coincidencia</span>
-                          <span>{movie.release_date ? new Date(movie.release_date).getFullYear() : 'N/A'}</span>
+                          <span className="text-green-400 font-bold">{(activeMovie.vote_average * 10).toFixed(0)}% Coincidencia</span>
+                          <span>{activeMovie.release_date ? new Date(activeMovie.release_date).getFullYear() : 'N/A'}</span>
                           <span className="border border-gray-500 px-1 rounded uppercase">HD</span>
-                          {movie.vote_average >= 8 && (
+                          {activeMovie.vote_average >= 8 && (
                               <span className="border border-red-500 text-red-500 px-1 rounded text-[10px] sm:text-xs uppercase">Top Rated</span>
                           )}
-                          {movie.media_type === 'tv' && (
+                          {activeMovie.media_type === 'tv' && (
                               <span className="bg-gray-700 text-white px-2 py-0.5 rounded text-[10px] uppercase tracking-wide">TV Series</span>
                           )}
                       </div>
@@ -238,7 +247,7 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                       )}
 
                       <p className="text-gray-300 text-sm sm:text-base md:text-lg leading-relaxed">
-                          {details?.overview || movie.overview || "No hay descripción disponible para este título."}
+                          {details?.overview || activeMovie.overview || "No hay descripción disponible para este título."}
                       </p>
                   </div>
                   
@@ -247,20 +256,20 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                           <span className="text-gray-500 block mb-1">Valoración:</span>
                           <div className="flex items-center gap-2">
                               <div className="flex text-sm space-x-0.5">
-                                  {renderStars(movie.vote_average)}
+                                  {renderStars(activeMovie.vote_average)}
                               </div>
                               <span className="text-white font-bold text-sm sm:text-base">
-                                  {movie.vote_average.toFixed(1)}
+                                  {activeMovie.vote_average.toFixed(1)}
                               </span>
                           </div>
                       </div>
                       <div>
                           <span className="text-gray-500 block mb-1">Título Original:</span>
-                          <span className="text-white text-sm sm:text-base break-words">{movie.title}</span>
+                          <span className="text-white text-sm sm:text-base break-words">{activeMovie.title}</span>
                       </div>
                       <div>
                           <span className="text-gray-500 block mb-1">Fecha de estreno:</span>
-                          <span className="text-white text-sm sm:text-base">{movie.release_date || 'N/A'}</span>
+                          <span className="text-white text-sm sm:text-base">{activeMovie.release_date || 'N/A'}</span>
                       </div>
                       {details && (
                         <div>
