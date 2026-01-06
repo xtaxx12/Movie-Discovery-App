@@ -74,3 +74,17 @@ export const fetchMovieDetails = async (movieId: number): Promise<MovieDetails> 
     throw error;
   }
 };
+
+export const fetchRecommendations = async (movieId: number): Promise<Movie[]> => {
+  try {
+    const response = await fetch(
+      `${BASE_URL}/movie/${movieId}/recommendations?api_key=${API_KEY}&language=es-ES&page=1`
+    );
+    if (!response.ok) throw new Error('Failed to fetch recommendations');
+    const data: TMDBResponse = await response.json();
+    return data.results;
+  } catch (error) {
+    console.error('Error fetching recommendations:', error);
+    return [];
+  }
+};

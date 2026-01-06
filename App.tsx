@@ -57,7 +57,11 @@ const App: React.FC = () => {
       <Navbar />
       
       <ApiKeyModal onRetry={handleRetry} />
-      <MovieModal movie={selectedMovie} onClose={closeModal} />
+      <MovieModal 
+        movie={selectedMovie} 
+        onClose={closeModal} 
+        onMovieSelect={openModal}
+      />
 
       {error ? (
         <div className="h-screen flex flex-col items-center justify-center text-center px-4">

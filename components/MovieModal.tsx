@@ -1,28 +1,46 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Movie, MovieDetails } from '../types';
-import { getImageUrl, fetchMovieVideos, fetchMovieDetails } from '../services/tmdbService';
+import { getImageUrl, fetchMovieVideos, fetchMovieDetails, fetchRecommendations } from '../services/tmdbService';
+import MovieCard from './MovieCard';
 
 interface MovieModalProps {
   movie: Movie | null;
   onClose: () => void;
+  onMovieSelect?: (movie: Movie) => void;
 }
 
-const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose }) => {
+const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }) => {
   const [trailerKey, setTrailerKey] = useState<string | null>(null);
   const [loadingTrailer, setLoadingTrailer] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [details, setDetails] = useState<MovieDetails | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [recommendations, setRecommendations] = useState<Movie[]>([]);
+  const [isVisible, setIsVisible] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (movie) {
       document.body.style.overflow = 'hidden';
+      // Reset scroll position when movie changes
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = 0;
+      }
+
       loadTrailer(movie.id);
       fetchMovieDetails(movie.id).then(setDetails).catch(err => console.error(err));
+      fetchRecommendations(movie.id).then(setRecommendations).catch(err => console.error(err));
+      setIsFavorite(false);
+      // Trigger fade-in animation
+      setIsVisible(true);
     } else {
       document.body.style.overflow = 'auto';
       setTrailerKey(null);
       setIsPlaying(false);
       setDetails(null);
+      setIsFavorite(false);
+      setRecommendations([]);
+      setIsVisible(false);
     }
     return () => {
       document.body.style.overflow = 'auto';
@@ -56,39 +74,61 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose }) => {
     }
   };
 
+  const toggleFavorite = () => {
+    setIsFavorite(!isFavorite);
+  };
+
+  const handleClose = () => {
+    setIsVisible(false);
+    setTimeout(() => {
+      onClose();
+    }, 300); // Match CSS duration
+  };
+
+  const renderStars = (voteAverage: number) => {
+    const stars = [];
+    const rating = voteAverage / 2; // Convert 0-10 scale to 0-5 scale
+    for (let i = 1; i <= 5; i++) {
+      if (rating >= i) {
+        stars.push(<i key={i} className="fas fa-star text-yellow-400"></i>);
+      } else if (rating >= i - 0.5) {
+        stars.push(<i key={i} className="fas fa-star-half-alt text-yellow-400"></i>);
+      } else {
+        stars.push(<i key={i} className="far fa-star text-gray-600"></i>);
+      }
+    }
+    return stars;
+  };
+
   if (!movie) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center sm:p-4">
-      {/* Animation Styles */}
-      <style>{`
-        @keyframes modalFadeIn {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
-
+    <div 
+      className={`fixed inset-0 z-[100] flex items-center justify-center sm:p-4 transition-opacity duration-300 ease-in-out ${isVisible ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+    >
       {/* Backdrop */}
       <div 
-        className="absolute inset-0 bg-black/80 backdrop-blur-sm transition-opacity" 
-        onClick={onClose}
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm" 
+        onClick={handleClose}
       ></div>
 
       {/* Modal Container */}
       <div 
-        className="relative bg-[#181818] w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden"
-        style={{ animation: 'modalFadeIn 0.3s ease-out' }}
+        className={`relative bg-[#181818] w-full sm:max-w-4xl h-full sm:h-auto sm:max-h-[90vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300 ease-out transform ${isVisible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
       >
         {/* Close Button */}
         <button 
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute top-3 right-3 z-50 w-9 h-9 sm:w-10 sm:h-10 bg-[#181818]/60 hover:bg-[#181818] rounded-full flex items-center justify-center text-white transition-colors border border-white/10"
         >
           <i className="fas fa-times"></i>
         </button>
 
         {/* Scrollable Content */}
-        <div className="overflow-y-auto flex-1 no-scrollbar">
+        <div 
+          ref={scrollContainerRef} 
+          className="overflow-y-auto flex-1 no-scrollbar"
+        >
             
             {/* Hero Image / Video Section */}
             <div className="relative aspect-video w-full bg-black">
@@ -134,8 +174,18 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose }) => {
                                     <><i className="fas fa-video-slash"></i> Sin Tráiler</>
                                 )}
                             </button>
-                            <button className="bg-gray-500/40 text-white hover:bg-gray-500/60 px-4 sm:px-8 py-2 rounded font-bold flex items-center gap-2 transition-colors border border-white/20 text-sm sm:text-base">
-                                <i className="fas fa-plus"></i> <span className="hidden sm:inline">Mi Lista</span>
+                            
+                            <button 
+                                onClick={toggleFavorite}
+                                className={`
+                                    px-4 sm:px-8 py-2 rounded font-bold flex items-center gap-2 transition-colors border text-sm sm:text-base
+                                    ${isFavorite 
+                                        ? 'bg-white/90 text-black border-white hover:bg-white' 
+                                        : 'bg-gray-500/40 text-white hover:bg-gray-500/60 border-white/20'}
+                                `}
+                            >
+                                <i className={`${isFavorite ? 'fas fa-heart text-red-600' : 'far fa-heart'}`}></i> 
+                                <span className="hidden sm:inline">{isFavorite ? 'En Favoritos' : 'Favoritos'}</span>
                             </button>
                         </div>
                     </div>
@@ -144,66 +194,90 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose }) => {
             </div>
 
             {/* Details Content */}
-            <div className="p-4 sm:p-8 grid md:grid-cols-[2fr_1fr] gap-6 md:gap-8">
-                <div className="space-y-4">
-                    <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm font-semibold text-gray-300 flex-wrap">
-                        <span className="text-green-400 font-bold">{(movie.vote_average * 10).toFixed(0)}% Coincidencia</span>
-                        <span>{new Date(movie.release_date).getFullYear()}</span>
-                        <span className="border border-gray-500 px-1 rounded uppercase">HD</span>
-                        {movie.vote_average >= 8 && (
-                             <span className="border border-red-500 text-red-500 px-1 rounded text-[10px] sm:text-xs uppercase">Top Rated</span>
+            <div className="p-4 sm:p-8">
+              <div className="grid md:grid-cols-[2fr_1fr] gap-6 md:gap-8 mb-8">
+                  <div className="space-y-4">
+                      <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm font-semibold text-gray-300 flex-wrap">
+                          <span className="text-green-400 font-bold">{(movie.vote_average * 10).toFixed(0)}% Coincidencia</span>
+                          <span>{new Date(movie.release_date).getFullYear()}</span>
+                          <span className="border border-gray-500 px-1 rounded uppercase">HD</span>
+                          {movie.vote_average >= 8 && (
+                              <span className="border border-red-500 text-red-500 px-1 rounded text-[10px] sm:text-xs uppercase">Top Rated</span>
+                          )}
+                      </div>
+
+                      {/* Genres & Runtime */}
+                      <div className="flex flex-wrap gap-2">
+                        {details?.genres?.map((genre) => (
+                            <span key={genre.id} className="text-xs font-medium text-gray-300 border border-gray-600 px-2 py-0.5 rounded-full bg-white/5">
+                                {genre.name}
+                            </span>
+                        ))}
+                        {details?.runtime && details.runtime > 0 && (
+                            <span className="text-xs font-medium text-gray-400 px-2 py-0.5 flex items-center gap-1">
+                                <i className="far fa-clock"></i> {Math.floor(details.runtime / 60)}h {details.runtime % 60}m
+                            </span>
                         )}
-                    </div>
-
-                    {/* Genres & Runtime */}
-                    <div className="flex flex-wrap gap-2">
-                      {details?.genres?.map((genre) => (
-                          <span key={genre.id} className="text-xs font-medium text-gray-300 border border-gray-600 px-2 py-0.5 rounded-full bg-white/5">
-                              {genre.name}
-                          </span>
-                      ))}
-                      {details?.runtime && details.runtime > 0 && (
-                          <span className="text-xs font-medium text-gray-400 px-2 py-0.5 flex items-center gap-1">
-                               <i className="far fa-clock"></i> {Math.floor(details.runtime / 60)}h {details.runtime % 60}m
-                          </span>
+                      </div>
+                      
+                      {details?.tagline && (
+                        <p className="text-white italic text-sm border-l-2 border-red-600 pl-3">
+                          "{details.tagline}"
+                        </p>
                       )}
-                    </div>
-                    
-                    {details?.tagline && (
-                      <p className="text-white italic text-sm border-l-2 border-red-600 pl-3">
-                        "{details.tagline}"
-                      </p>
-                    )}
 
-                    <p className="text-gray-300 text-sm sm:text-base md:text-lg leading-relaxed">
-                        {details?.overview || movie.overview || "No hay descripción disponible para este título."}
-                    </p>
+                      <p className="text-gray-300 text-sm sm:text-base md:text-lg leading-relaxed">
+                          {details?.overview || movie.overview || "No hay descripción disponible para este título."}
+                      </p>
+                  </div>
+                  
+                  <div className="space-y-4 text-xs sm:text-sm text-gray-400">
+                      <div>
+                          <span className="text-gray-500 block mb-1">Valoración:</span>
+                          <div className="flex items-center gap-2">
+                              <div className="flex text-sm space-x-0.5">
+                                  {renderStars(movie.vote_average)}
+                              </div>
+                              <span className="text-white font-bold text-sm sm:text-base">
+                                  {movie.vote_average.toFixed(1)}
+                              </span>
+                          </div>
+                      </div>
+                      <div>
+                          <span className="text-gray-500 block mb-1">Título Original:</span>
+                          <span className="text-white text-sm sm:text-base break-words">{movie.title}</span>
+                      </div>
+                      <div>
+                          <span className="text-gray-500 block mb-1">Fecha de estreno:</span>
+                          <span className="text-white text-sm sm:text-base">{movie.release_date}</span>
+                      </div>
+                      {details && (
+                        <div>
+                            <span className="text-gray-500 block mb-1">Géneros:</span>
+                            <span className="text-white text-sm">
+                              {details.genres.map(g => g.name).join(", ")}
+                            </span>
+                        </div>
+                      )}
+                  </div>
+              </div>
+
+              {/* Recommendations Carousel */}
+              {recommendations.length > 0 && (
+                <div className="mt-8 border-t border-gray-800 pt-8">
+                  <h3 className="text-xl font-bold text-white mb-4">Recomendaciones</h3>
+                  <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar">
+                    {recommendations.map(rec => (
+                        <div key={rec.id} className="min-w-[140px] w-[140px] sm:min-w-[180px] sm:w-[180px] flex-none">
+                          <MovieCard 
+                            movie={rec} 
+                            onClick={() => onMovieSelect?.(rec)} 
+                          />
+                        </div>
+                    ))}
+                  </div>
                 </div>
-                
-                <div className="space-y-4 text-xs sm:text-sm text-gray-400">
-                    <div>
-                        <span className="text-gray-500 block mb-1">Valoración:</span>
-                        <span className="text-white flex items-center gap-2 text-sm sm:text-base">
-                            <i className="fas fa-star text-yellow-500"></i> {movie.vote_average.toFixed(1)} <span className="text-gray-600 text-xs">/ 10</span>
-                        </span>
-                    </div>
-                    <div>
-                        <span className="text-gray-500 block mb-1">Título Original:</span>
-                        <span className="text-white text-sm sm:text-base break-words">{movie.title}</span>
-                    </div>
-                    <div>
-                        <span className="text-gray-500 block mb-1">Fecha de estreno:</span>
-                        <span className="text-white text-sm sm:text-base">{movie.release_date}</span>
-                    </div>
-                    {details && (
-                       <div>
-                          <span className="text-gray-500 block mb-1">Géneros:</span>
-                          <span className="text-white text-sm">
-                            {details.genres.map(g => g.name).join(", ")}
-                          </span>
-                       </div>
-                    )}
-                </div>
+              )}
             </div>
         </div>
       </div>
