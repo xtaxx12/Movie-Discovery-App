@@ -27,9 +27,11 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
         scrollContainerRef.current.scrollTop = 0;
       }
 
-      loadTrailer(movie.id);
-      fetchMovieDetails(movie.id).then(setDetails).catch(err => console.error(err));
-      fetchRecommendations(movie.id).then(setRecommendations).catch(err => console.error(err));
+      const type = movie.media_type || 'movie'; // Default to movie if undefined
+      
+      loadTrailer(movie.id, type);
+      fetchMovieDetails(movie.id, type).then(setDetails).catch(err => console.error(err));
+      fetchRecommendations(movie.id, type).then(setRecommendations).catch(err => console.error(err));
       setIsFavorite(false);
       // Trigger fade-in animation
       setIsVisible(true);
@@ -47,13 +49,13 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
     };
   }, [movie]);
 
-  const loadTrailer = async (movieId: number) => {
+  const loadTrailer = async (movieId: number, type: 'movie' | 'tv') => {
     setLoadingTrailer(true);
     setTrailerKey(null);
     setIsPlaying(false);
     
     try {
-      const videos = await fetchMovieVideos(movieId);
+      const videos = await fetchMovieVideos(movieId, type);
       // Priority: Official Trailer -> Trailer -> Teaser, strictly YouTube
       const trailer = videos.find(v => v.site === 'YouTube' && v.type === 'Trailer' && v.official)
                    || videos.find(v => v.site === 'YouTube' && v.type === 'Trailer') 
@@ -132,11 +134,12 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
         >
             
             {/* Hero Image / Video Section */}
-            <div className="relative aspect-video w-full bg-black">
+            <div className="relative aspect-video w-full bg-black shadow-lg">
                 {isPlaying && trailerKey ? (
                 <iframe
                     className="w-full h-full"
-                    src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=1&rel=0&modestbranding=1&fs=1`}
+                    style={{ border: 'none' }}
+                    src={`https://www.youtube.com/embed/${trailerKey}?autoplay=1&controls=1&rel=0&modestbranding=1&fs=1&iv_load_policy=3&color=white`}
                     title="YouTube video player"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
@@ -199,10 +202,13 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                   <div className="space-y-4">
                       <div className="flex items-center gap-3 sm:gap-4 text-xs sm:text-sm font-semibold text-gray-300 flex-wrap">
                           <span className="text-green-400 font-bold">{(movie.vote_average * 10).toFixed(0)}% Coincidencia</span>
-                          <span>{new Date(movie.release_date).getFullYear()}</span>
+                          <span>{movie.release_date ? new Date(movie.release_date).getFullYear() : 'N/A'}</span>
                           <span className="border border-gray-500 px-1 rounded uppercase">HD</span>
                           {movie.vote_average >= 8 && (
                               <span className="border border-red-500 text-red-500 px-1 rounded text-[10px] sm:text-xs uppercase">Top Rated</span>
+                          )}
+                          {movie.media_type === 'tv' && (
+                              <span className="bg-gray-700 text-white px-2 py-0.5 rounded text-[10px] uppercase tracking-wide">TV Series</span>
                           )}
                       </div>
 
@@ -217,6 +223,11 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                             <span className="text-xs font-medium text-gray-400 px-2 py-0.5 flex items-center gap-1">
                                 <i className="far fa-clock"></i> {Math.floor(details.runtime / 60)}h {details.runtime % 60}m
                             </span>
+                        )}
+                        {details?.number_of_seasons && (
+                             <span className="text-xs font-medium text-gray-400 px-2 py-0.5 flex items-center gap-1">
+                                <i className="fas fa-layer-group"></i> {details.number_of_seasons} Temporadas
+                             </span>
                         )}
                       </div>
                       
@@ -249,7 +260,7 @@ const MovieModal: React.FC<MovieModalProps> = ({ movie, onClose, onMovieSelect }
                       </div>
                       <div>
                           <span className="text-gray-500 block mb-1">Fecha de estreno:</span>
-                          <span className="text-white text-sm sm:text-base">{movie.release_date}</span>
+                          <span className="text-white text-sm sm:text-base">{movie.release_date || 'N/A'}</span>
                       </div>
                       {details && (
                         <div>

@@ -7,6 +7,7 @@ export interface Movie {
   vote_average: number;
   release_date: string;
   genre_ids: number[];
+  media_type?: 'movie' | 'tv';
 }
 
 export interface TMDBResponse {
@@ -44,6 +45,8 @@ export interface MovieDetails {
   vote_average: number;
   release_date: string;
   genres: Genre[];
-  runtime: number;
+  runtime: number; // For movies
+  episode_run_time?: number[]; // For TV
+  number_of_seasons?: number; // For TV
   tagline: string;
 }
