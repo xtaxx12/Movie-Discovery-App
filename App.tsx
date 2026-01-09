@@ -4,6 +4,7 @@ import Hero from './components/Hero';
 import MovieCard from './components/MovieCard';
 import MovieModal from './components/MovieModal';
 import ApiKeyModal from './components/ApiKeyModal';
+import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
 import { 
   fetchPopularMovies, 
   fetchTopRatedMovies, 
@@ -14,10 +15,10 @@ import {
 } from './services/tmdbService';
 import { Movie } from './types';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
+  const { language, t } = useLanguage();
   const [movies, setMovies] = useState<Movie[]>([]);
   const [favorites, setFavorites] = useState<Movie[]>(() => {
-    // Initialize favorites from localStorage
     try {
         const saved = localStorage.getItem('favorites');
         return saved ? JSON.parse(saved) : [];
@@ -35,7 +36,6 @@ const App: React.FC = () => {
   const [page, setPage] = useState<number>(1);
   const [totalPages, setTotalPages] = useState<number>(0);
 
-  // Function to toggle favorites
   const handleToggleFavorite = (movie: Movie) => {
     setFavorites(prevFavs => {
       const exists = prevFavs.some(f => f.id === movie.id);
@@ -47,7 +47,6 @@ const App: React.FC = () => {
       }
       localStorage.setItem('favorites', JSON.stringify(newFavs));
       
-      // If currently viewing favorites, update the list immediately
       if (activeCategory === 'favorites') {
         setMovies(newFavs);
       }
@@ -60,9 +59,7 @@ const App: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // Special handling for Favorites category (Local Data)
     if (category === 'favorites') {
-        // Simple client-side "pagination" or just show all. Showing all for simplicity.
         setMovies(favorites);
         setTotalPages(1);
         setPage(1);
@@ -74,23 +71,23 @@ const App: React.FC = () => {
       let data: FetchResult = { results: [], total_pages: 0 };
       
       if (query) {
-         data = await searchMulti(query, pageNum);
+         data = await searchMulti(query, pageNum, language);
       } else {
         switch (category) {
           case 'home':
-            data = await fetchPopularMovies(pageNum);
+            data = await fetchPopularMovies(pageNum, language);
             break;
           case 'movies':
-            data = await fetchTopRatedMovies(pageNum);
+            data = await fetchTopRatedMovies(pageNum, language);
             break;
           case 'series':
-            data = await fetchPopularTV(pageNum);
+            data = await fetchPopularTV(pageNum, language);
             break;
           case 'upcoming':
-            data = await fetchUpcomingMovies(pageNum);
+            data = await fetchUpcomingMovies(pageNum, language);
             break;
           default:
-            data = await fetchPopularMovies(pageNum);
+            data = await fetchPopularMovies(pageNum, language);
         }
       }
 
@@ -99,15 +96,15 @@ const App: React.FC = () => {
       setPage(pageNum);
 
     } catch (err) {
-      setError('No se pudieron cargar los datos. Verifica tu conexión o tu API Key.');
+      setError(t('errorMessage'));
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadContent(activeCategory, '', 1);
-  }, []); // Initial load
+    loadContent(activeCategory, currentQuery, 1);
+  }, [language]);
 
   const handleCategoryChange = (category: string) => {
     setActiveCategory(category);
@@ -126,7 +123,6 @@ const App: React.FC = () => {
   };
 
   const handlePageChange = (newPage: number) => {
-    // Pagination only for API categories
     if (activeCategory === 'favorites') return;
 
     if (newPage >= 1 && newPage <= totalPages) {
@@ -135,7 +131,6 @@ const App: React.FC = () => {
       } else {
         loadContent(activeCategory, '', newPage);
       }
-      // Scroll to top of grid
       const grid = document.getElementById('movies');
       if (grid) {
         grid.scrollIntoView({ behavior: 'smooth' });
@@ -158,25 +153,23 @@ const App: React.FC = () => {
   };
 
   const getPageTitle = () => {
-    if (activeCategory === 'search') return `Resultados para "${currentQuery}"`;
-    if (activeCategory === 'movies') return 'Películas Mejor Valoradas';
-    if (activeCategory === 'series') return 'Series Populares';
-    if (activeCategory === 'upcoming') return 'Novedades y Estrenos';
-    if (activeCategory === 'favorites') return 'Mi Lista de Favoritos';
-    return 'Populares en CineStream';
+    if (activeCategory === 'search') return `${t('searchResults')} "${currentQuery}"`;
+    if (activeCategory === 'movies') return t('topRatedMovies');
+    if (activeCategory === 'series') return t('popularSeries');
+    if (activeCategory === 'upcoming') return t('upcomingReleases');
+    if (activeCategory === 'favorites') return t('myFavorites');
+    return t('popularTitle');
   };
 
-  // Determine if selected movie is a favorite
   const isSelectedMovieFavorite = selectedMovie 
     ? favorites.some(f => f.id === selectedMovie.id) 
     : false;
 
-  // Loading State (Initial only if not handled by overlay)
   if (loading && movies.length === 0 && activeCategory !== 'favorites') {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
         <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-red-600"></div>
-        <p className="text-white mt-4 font-semibold animate-pulse">Cargando...</p>
+        <p className="text-white mt-4 font-semibold animate-pulse">{t('loading')}</p>
       </div>
     );
   }
@@ -201,15 +194,14 @@ const App: React.FC = () => {
       {error ? (
         <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
            <i className="fas fa-video-slash text-6xl text-gray-600 mb-4"></i>
-           <h2 className="text-2xl font-bold mb-2">Ups, algo salió mal</h2>
+           <h2 className="text-2xl font-bold mb-2">{t('errorTitle')}</h2>
            <p className="text-gray-400 mb-6">{error}</p>
            <button onClick={() => loadContent(activeCategory, currentQuery, 1)} className="bg-red-600 px-6 py-2 rounded font-bold hover:bg-red-700">
-             Reintentar
+             {t('retry')}
            </button>
         </div>
       ) : (
         <>
-          {/* Hero Section (Show on Home, or if we are not searching and not in favorites - or allow hero in favs if list > 0) */}
           {activeCategory === 'home' && movies.length > 0 && (
             <Hero 
               movie={movies[0]} 
@@ -217,14 +209,13 @@ const App: React.FC = () => {
             />
           )}
 
-          {/* Main Content Grid */}
           <main id="movies" className={`flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 ${activeCategory === 'home' ? '-mt-20 py-16' : 'pt-24 py-16'}`}>
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl md:text-3xl font-bold">{getPageTitle()}</h2>
               {activeCategory !== 'search' && activeCategory !== 'favorites' && (
                 <div className="flex gap-2">
-                   <button onClick={() => handleCategoryChange('movies')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">Películas</button>
-                   <button onClick={() => handleCategoryChange('series')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">Series</button>
+                   <button onClick={() => handleCategoryChange('movies')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">{t('movies')}</button>
+                   <button onClick={() => handleCategoryChange('series')} className="text-xs border border-gray-600 px-2 py-1 rounded hover:bg-white hover:text-black transition-colors">{t('series')}</button>
                 </div>
               )}
             </div>
@@ -238,23 +229,22 @@ const App: React.FC = () => {
                     {activeCategory === 'favorites' ? (
                         <>
                              <i className="far fa-heart text-5xl mb-4 text-gray-700"></i>
-                             <p className="text-lg">Aún no tienes favoritos.</p>
-                             <p className="text-sm mt-2">Agrega películas o series para verlas aquí.</p>
+                             <p className="text-lg">{t('noFavorites')}</p>
+                             <p className="text-sm mt-2">{t('addFavorites')}</p>
                              <button onClick={() => handleCategoryChange('home')} className="mt-6 text-red-500 hover:text-red-400 underline">
-                                Explorar contenido
+                                {t('exploreContent')}
                              </button>
                         </>
                     ) : (
                         <>
                             <i className="far fa-folder-open text-5xl mb-4"></i>
-                            <p>No se encontraron resultados.</p>
+                            <p>{t('noResults')}</p>
                         </>
                     )}
                 </div>
             ) : (
                 <>
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 gap-y-10">
-                    {/* Logic: If Home page 1, skip first (it's Hero). Else show all. */}
                     {(activeCategory === 'home' && page === 1
                         ? movies.slice(1) 
                         : movies
@@ -267,27 +257,24 @@ const App: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Standard Pagination (Hide for Favorites) */}
                   {activeCategory !== 'favorites' && totalPages > 1 && (
                     <div className="mt-16 flex justify-center items-center gap-4">
                         <button 
                         onClick={() => handlePageChange(page - 1)}
                         disabled={page === 1}
                         className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
-                        title="Página Anterior"
                         >
                         <i className="fas fa-chevron-left"></i>
                         </button>
                         
                         <span className="text-gray-400 font-medium">
-                            Página <span className="text-white font-bold">{page}</span> de <span className="text-white">{totalPages > 500 ? 500 : totalPages}</span>
+                            {t('page')} <span className="text-white font-bold">{page}</span> {t('of')} <span className="text-white">{totalPages > 500 ? 500 : totalPages}</span>
                         </span>
 
                         <button 
                         onClick={() => handlePageChange(page + 1)}
                         disabled={page >= totalPages}
                         className="bg-slate-800 hover:bg-red-600 disabled:opacity-50 disabled:hover:bg-slate-800 border border-slate-700 text-white font-semibold w-12 h-12 rounded-full transition-all duration-300 flex items-center justify-center"
-                        title="Siguiente Página"
                         >
                         <i className="fas fa-chevron-right"></i>
                         </button>
@@ -297,7 +284,6 @@ const App: React.FC = () => {
             )}
           </main>
 
-          {/* Footer */}
           <footer className="bg-black py-12 border-t border-gray-800 mt-auto">
             <div className="max-w-7xl mx-auto px-4 text-center">
               <div className="flex justify-center gap-6 text-2xl text-gray-400">
@@ -306,13 +292,21 @@ const App: React.FC = () => {
                 <i className="fab fa-github hover:text-white cursor-pointer transition-colors"></i>
               </div>
               <p className="text-gray-700 text-xs mt-8">
-                &copy; {new Date().getFullYear()} CineStream. Datos provistos por TMDB API.
+                &copy; {new Date().getFullYear()} CineStream. {t('footerText')}
               </p>
             </div>
           </footer>
         </>
       )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <LanguageProvider>
+      <AppContent />
+    </LanguageProvider>
   );
 };
 

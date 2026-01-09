@@ -11,6 +11,13 @@ const BASE_URL = 'https://api.themoviedb.org/3';
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p';
 const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
+// Default language, can be overridden by passing language parameter
+let currentLanguage = 'es-ES';
+
+export const setApiLanguage = (lang: string) => {
+  currentLanguage = lang;
+};
+
 export const getImageUrl = (path: string | null, size: 'original' | 'w500' = 'w500') => {
   if (!path) return 'https://via.placeholder.com/500x750?text=No+Image';
   return `${IMAGE_BASE_URL}/${size}${path}`;
@@ -58,10 +65,10 @@ export interface FetchResult {
 
 // --- API CALLS ---
 
-export const fetchPopularMovies = async (page: number = 1): Promise<FetchResult> => {
+export const fetchPopularMovies = async (page: number = 1, language: string = currentLanguage): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/movie/popular?api_key=${API_KEY}&language=es-ES&page=${page}`
+      `${BASE_URL}/movie/popular?api_key=${API_KEY}&language=${language}&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
@@ -75,10 +82,10 @@ export const fetchPopularMovies = async (page: number = 1): Promise<FetchResult>
   }
 };
 
-export const fetchTopRatedMovies = async (page: number = 1): Promise<FetchResult> => {
+export const fetchTopRatedMovies = async (page: number = 1, language: string = currentLanguage): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/movie/top_rated?api_key=${API_KEY}&language=es-ES&page=${page}`
+      `${BASE_URL}/movie/top_rated?api_key=${API_KEY}&language=${language}&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
@@ -92,10 +99,10 @@ export const fetchTopRatedMovies = async (page: number = 1): Promise<FetchResult
   }
 };
 
-export const fetchUpcomingMovies = async (page: number = 1): Promise<FetchResult> => {
+export const fetchUpcomingMovies = async (page: number = 1, language: string = currentLanguage): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/movie/upcoming?api_key=${API_KEY}&language=es-ES&page=${page}`
+      `${BASE_URL}/movie/upcoming?api_key=${API_KEY}&language=${language}&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data: TMDBResponse = await response.json();
@@ -109,10 +116,10 @@ export const fetchUpcomingMovies = async (page: number = 1): Promise<FetchResult
   }
 };
 
-export const fetchPopularTV = async (page: number = 1): Promise<FetchResult> => {
+export const fetchPopularTV = async (page: number = 1, language: string = currentLanguage): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/tv/popular?api_key=${API_KEY}&language=es-ES&page=${page}`
+      `${BASE_URL}/tv/popular?api_key=${API_KEY}&language=${language}&page=${page}`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data = await response.json();
@@ -140,10 +147,10 @@ export const fetchPopularTV = async (page: number = 1): Promise<FetchResult> => 
   }
 };
 
-export const searchMulti = async (query: string, page: number = 1): Promise<FetchResult> => {
+export const searchMulti = async (query: string, page: number = 1, language: string = currentLanguage): Promise<FetchResult> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/search/multi?api_key=${API_KEY}&language=es-ES&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`
+      `${BASE_URL}/search/multi?api_key=${API_KEY}&language=${language}&query=${encodeURIComponent(query)}&page=${page}&include_adult=false`
     );
     if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
     const data = await response.json();
@@ -173,18 +180,18 @@ export const searchMulti = async (query: string, page: number = 1): Promise<Fetc
   }
 };
 
-export const fetchMovieVideos = async (id: number, type: 'movie' | 'tv' = 'movie'): Promise<Video[]> => {
+export const fetchMovieVideos = async (id: number, type: 'movie' | 'tv' = 'movie', language: string = currentLanguage): Promise<Video[]> => {
   try {
     const response = await fetch(
-      `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=es-ES`
+      `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=${language}`
     );
 
     if (!response.ok) throw new Error('Failed to fetch videos');
 
     const data: VideoResponse = await response.json();
 
-    // Fallback: If no results in Spanish, try English
-    if (data.results.length === 0) {
+    // Fallback: If no results in current language, try English
+    if (data.results.length === 0 && language !== 'en-US') {
       const responseEn = await fetch(
         `${BASE_URL}/${type}/${id}/videos?api_key=${API_KEY}&language=en-US`
       );
@@ -199,15 +206,15 @@ export const fetchMovieVideos = async (id: number, type: 'movie' | 'tv' = 'movie
   }
 };
 
-export const fetchMovieDetails = async (id: number, type: 'movie' | 'tv' = 'movie'): Promise<MovieDetails> => {
-  const cacheKey = `${type}_details_${id}`;
+export const fetchMovieDetails = async (id: number, type: 'movie' | 'tv' = 'movie', language: string = currentLanguage): Promise<MovieDetails> => {
+  const cacheKey = `${type}_details_${id}_${language}`;
 
   const cachedData = getFromCache<MovieDetails>(cacheKey);
   if (cachedData) return cachedData;
 
   try {
     const response = await fetch(
-      `${BASE_URL}/${type}/${id}?api_key=${API_KEY}&language=es-ES`
+      `${BASE_URL}/${type}/${id}?api_key=${API_KEY}&language=${language}`
     );
     if (!response.ok) throw new Error('Failed to fetch details');
     const data = await response.json();
@@ -230,15 +237,15 @@ export const fetchMovieDetails = async (id: number, type: 'movie' | 'tv' = 'movi
   }
 };
 
-export const fetchRecommendations = async (id: number, type: 'movie' | 'tv' = 'movie'): Promise<Movie[]> => {
-  const cacheKey = `${type}_recs_${id}`;
+export const fetchRecommendations = async (id: number, type: 'movie' | 'tv' = 'movie', language: string = currentLanguage): Promise<Movie[]> => {
+  const cacheKey = `${type}_recs_${id}_${language}`;
 
   const cachedData = getFromCache<Movie[]>(cacheKey);
   if (cachedData) return cachedData;
 
   try {
     const response = await fetch(
-      `${BASE_URL}/${type}/${id}/recommendations?api_key=${API_KEY}&language=es-ES&page=1`
+      `${BASE_URL}/${type}/${id}/recommendations?api_key=${API_KEY}&language=${language}&page=1`
     );
     if (!response.ok) throw new Error('Failed to fetch recommendations');
     const data: TMDBResponse = await response.json();

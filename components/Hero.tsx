@@ -1,6 +1,7 @@
 import React from 'react';
 import { Movie } from '../types';
 import { getImageUrl } from '../services/tmdbService';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface HeroProps {
   movie: Movie;
@@ -8,6 +9,9 @@ interface HeroProps {
 }
 
 const Hero: React.FC<HeroProps> = ({ movie, onMoreInfoClick }) => {
+  const { t, language } = useLanguage();
+  const trendingText = language === 'es-ES' ? '#1 En Tendencia' : '#1 Trending';
+
   return (
     <div className="relative w-full h-[85vh] lg:h-[90vh]">
       {/* Background Image */}
@@ -27,7 +31,7 @@ const Hero: React.FC<HeroProps> = ({ movie, onMoreInfoClick }) => {
         <div className="max-w-2xl space-y-6 pt-20">
           <div className="flex items-center gap-3">
             <span className="bg-red-600 text-white text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">
-              #1 En Tendencia
+              {trendingText}
             </span>
             <div className="flex items-center gap-1 text-yellow-400 text-sm font-semibold">
               <i className="fas fa-star"></i>
@@ -45,13 +49,13 @@ const Hero: React.FC<HeroProps> = ({ movie, onMoreInfoClick }) => {
 
           <div className="flex flex-wrap gap-4 pt-4">
             <button className="bg-white text-black hover:bg-gray-200 transition-colors px-8 py-3 rounded font-bold flex items-center gap-2 text-lg">
-              <i className="fas fa-play"></i> Reproducir
+              <i className="fas fa-play"></i> {t('play')}
             </button>
             <button 
               onClick={onMoreInfoClick}
               className="bg-gray-600/70 hover:bg-gray-600/90 text-white backdrop-blur-sm transition-colors px-8 py-3 rounded font-bold flex items-center gap-2 text-lg"
             >
-              <i className="fas fa-info-circle"></i> Más Info
+              <i className="fas fa-info-circle"></i> {t('moreInfo')}
             </button>
           </div>
         </div>
